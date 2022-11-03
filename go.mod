@@ -1,4 +1,4 @@
-module filechecker
+module github.com/nadimattari/filechecker
 
 go 1.16
 
