@@ -2,10 +2,8 @@ package filechecker
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"mime/multipart"
-	"net/http"
 	"os"
 	"reflect"
 	"testing"
@@ -105,62 +103,79 @@ var (
 		ExtVideoWMV:  TypeVIDEO,
 	}
 
-	jpgPath  = "./utilities/assets/nadim.jpg"
-	pngPath  = "./utilities/assets/nadim.png"
-	pdfPath  = "./utilities/assets/nadim.pdf"
-	fakePath = "./utilities/assets/fake.png"
+	formFieldName = "uploadedFile"
+	jpgPath       = "assets/nadim.jpg"
+	pngPath       = "assets/nadim.png"
+	pdfPath       = "assets/nadim.pdf"
+	fakePath      = "assets/fake.png"
 )
 
 func TestGetFileChecker(t *testing.T) {
 	type args struct {
 		file *multipart.FileHeader
 	}
-
-	tests := []struct {
+	type test struct {
 		name string
 		args args
 		want *FileChecker
-	}{
-		{
+	}
+
+	var (
+		err          error
+		tests        []test
+		mpFileHeader *multipart.FileHeader
+	)
+
+	if mpFileHeader, err = getMultipartFileHeader(jpgPath); err == nil {
+		tests = append(tests, test{
 			name: "JPG",
-			args: args{file: &multipart.FileHeader{Filename: jpgPath}},
+			args: args{file: mpFileHeader},
 			want: &FileChecker{
-				file:                 &multipart.FileHeader{Filename: jpgPath},
+				file:                 mpFileHeader,
 				authorisedTypes:      defaultAuthorisedTypes,
 				authorisedExtensions: defaultAuthorisedExtensions,
 				_dictionary:          defaultDictionary,
 			},
-		},
-		{
+		})
+	}
+
+	if mpFileHeader, err = getMultipartFileHeader(pngPath); err == nil {
+		tests = append(tests, test{
 			name: "PNG",
-			args: args{file: &multipart.FileHeader{Filename: pngPath}},
+			args: args{file: mpFileHeader},
 			want: &FileChecker{
-				file:                 &multipart.FileHeader{Filename: pngPath},
+				file:                 mpFileHeader,
 				authorisedTypes:      defaultAuthorisedTypes,
 				authorisedExtensions: defaultAuthorisedExtensions,
 				_dictionary:          defaultDictionary,
 			},
-		},
-		{
+		})
+	}
+
+	if mpFileHeader, err = getMultipartFileHeader(pdfPath); err == nil {
+		tests = append(tests, test{
 			name: "PDF",
-			args: args{file: &multipart.FileHeader{Filename: pdfPath}},
+			args: args{file: mpFileHeader},
 			want: &FileChecker{
-				file:                 &multipart.FileHeader{Filename: pdfPath},
+				file:                 mpFileHeader,
 				authorisedTypes:      defaultAuthorisedTypes,
 				authorisedExtensions: defaultAuthorisedExtensions,
 				_dictionary:          defaultDictionary,
 			},
-		},
-		{
+		})
+	}
+
+	if mpFileHeader, err = getMultipartFileHeader(fakePath); err == nil {
+		tests = append(tests, test{
 			name: "FAKE",
-			args: args{file: &multipart.FileHeader{Filename: fakePath}},
+			args: args{file: mpFileHeader},
 			want: &FileChecker{
-				file:                 &multipart.FileHeader{Filename: fakePath},
+				file:                 mpFileHeader,
 				authorisedTypes:      defaultAuthorisedTypes,
 				authorisedExtensions: defaultAuthorisedExtensions,
 				_dictionary:          defaultDictionary,
 			},
-		},
+		})
 	}
 
 	for _, tt := range tests {
@@ -173,31 +188,48 @@ func TestGetFileChecker(t *testing.T) {
 }
 
 func TestFileChecker_SetFile(t *testing.T) {
-	tests := []struct {
+	type test struct {
 		name string
 		args *multipart.FileHeader
 		want *multipart.FileHeader
-	}{
-		{
+	}
+
+	var (
+		err          error
+		tests        []test
+		mpFileHeader *multipart.FileHeader
+	)
+
+	if mpFileHeader, err = getMultipartFileHeader(jpgPath); err == nil {
+		tests = append(tests, test{
 			name: "JPG",
-			args: &multipart.FileHeader{Filename: jpgPath},
-			want: &multipart.FileHeader{Filename: jpgPath},
-		},
-		{
+			args: mpFileHeader,
+			want: mpFileHeader,
+		})
+	}
+
+	if mpFileHeader, err = getMultipartFileHeader(pngPath); err == nil {
+		tests = append(tests, test{
 			name: "PNG",
-			args: &multipart.FileHeader{Filename: pngPath},
-			want: &multipart.FileHeader{Filename: pngPath},
-		},
-		{
+			args: mpFileHeader,
+			want: mpFileHeader,
+		})
+	}
+
+	if mpFileHeader, err = getMultipartFileHeader(pdfPath); err == nil {
+		tests = append(tests, test{
 			name: "PDF",
-			args: &multipart.FileHeader{Filename: pdfPath},
-			want: &multipart.FileHeader{Filename: pdfPath},
-		},
-		{
+			args: mpFileHeader,
+			want: mpFileHeader,
+		})
+	}
+
+	if mpFileHeader, err = getMultipartFileHeader(fakePath); err == nil {
+		tests = append(tests, test{
 			name: "FAKE",
-			args: &multipart.FileHeader{Filename: fakePath},
-			want: &multipart.FileHeader{Filename: fakePath},
-		},
+			args: mpFileHeader,
+			want: mpFileHeader,
+		})
 	}
 
 	for _, tt := range tests {
@@ -278,69 +310,149 @@ func TestFileChecker_SetExtensions(t *testing.T) {
 }
 
 func TestFileChecker_UnsetExtensions(t *testing.T) {
-	type fields struct {
-		file                 *multipart.FileHeader
-		authorisedTypes      map[string]bool
-		authorisedExtensions map[string]bool
-		_dictionary          map[string]string
+	type testStruct struct {
+		name     string
+		fChecker *FileChecker
+		args     []string
+		wantExt  map[string]bool
+		wantTyp  map[string]bool
 	}
-	type args struct {
-		extensions []string
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		args   args
-	}{
-		// TODO: Add test cases.
-	}
+
+	var (
+		tests      = make([]testStruct, 0)
+		extensions map[string]bool
+		types      map[string]bool
+	)
+
+	// TEST 1: Unset the ExtImgJPG extension.
+	// ExtImgJPG = false in FileChecker.authorisedExtensions while
+	// FileChecker.authorisedTypes remains unchanged (ExtImgPNG is still true)
+	extensions = getExt([]string{})
+	extensions[ExtImgJPG] = false
+	tests = append(tests, testStruct{
+		name:     "JPG",
+		fChecker: GetFileChecker(nil),
+		args:     []string{ExtImgJPG},
+		wantExt:  extensions,
+		wantTyp:  getTyp([]string{}),
+	})
+
+	// TEST 2: Unset the ExtArchivePDF extension.
+	// ExtArchivePDF = false in FileChecker.authorisedExtensions, plus
+	// TypeARCHIVE = false in FileChecker.authorisedTypes
+	extensions = getExt([]string{})
+	extensions[ExtArchivePDF] = false
+	types = getTyp([]string{})
+	types[TypeARCHIVE] = false
+	tests = append(tests, testStruct{
+		name:     "PDF",
+		fChecker: GetFileChecker(nil),
+		args:     []string{ExtArchivePDF},
+		wantExt:  extensions,
+		wantTyp:  types,
+	})
+
+	// TEST 2: Unset the ExtImgJPG & ExtImgJPG extensions.
+	// Both ExtImgJPG & ExtImgJPG = false in FileChecker.authorisedExtensions,
+	// and TypeIMAGE = false in FileChecker.authorisedTypes
+	extensions = getExt([]string{})
+	extensions[ExtImgJPG] = false
+	extensions[ExtImgPNG] = false
+	types = getTyp([]string{})
+	types[TypeIMAGE] = false
+	tests = append(tests, testStruct{
+		name:     "IMAGE",
+		fChecker: GetFileChecker(nil),
+		args:     []string{ExtImgJPG, ExtImgPNG},
+		wantExt:  extensions,
+		wantTyp:  types,
+	})
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fc := &FileChecker{
-				file:                 tt.fields.file,
-				authorisedTypes:      tt.fields.authorisedTypes,
-				authorisedExtensions: tt.fields.authorisedExtensions,
-				_dictionary:          tt.fields._dictionary,
+			tt.fChecker.UnsetExtensions(tt.args)
+			if !reflect.DeepEqual(tt.fChecker.authorisedExtensions, tt.wantExt) {
+				t.Errorf("Unset(%+v). Extensions :: Got: %+v. Expected: %+v", tt.args, tt.fChecker.authorisedExtensions, tt.wantExt)
 			}
-			fc.UnsetExtensions(tt.args.extensions)
+			if !reflect.DeepEqual(tt.fChecker.authorisedTypes, tt.wantTyp) {
+				t.Errorf("Unset(%+v). Types :: Got: %+v. Expected: %+v", tt.args, tt.fChecker.authorisedTypes, tt.wantTyp)
+			}
 		})
 	}
 }
 
 func TestFileChecker_IsAuthorised(t *testing.T) {
-	body, err := doRequest("assets/fake.png")
-	if err != nil {
-		t.Error(err)
+	type args struct {
+		file     *multipart.FileHeader
+		setExt   []string
+		unsetExt []string
+	}
+	type test struct {
+		name string
+		args args
+		want bool
 	}
 
-	t.Log(body)
+	var (
+		err          error
+		tests        []test
+		mpFileHeader *multipart.FileHeader
+	)
 
-	// type fields struct {
-	// 	file                 *multipart.FileHeader
-	// 	authorisedTypes      map[string]bool
-	// 	authorisedExtensions map[string]bool
-	// 	_dictionary          map[string]string
-	// }
-	// tests := []struct {
-	// 	name   string
-	// 	fields fields
-	// 	want   bool
-	// }{
-	// 	// TODO: Add test cases.
-	// }
-	// for _, tt := range tests {
-	// 	t.Run(tt.name, func(t *testing.T) {
-	// 		fc := &FileChecker{
-	// 			file:                 tt.fields.file,
-	// 			authorisedTypes:      tt.fields.authorisedTypes,
-	// 			authorisedExtensions: tt.fields.authorisedExtensions,
-	// 			_dictionary:          tt.fields._dictionary,
-	// 		}
-	// 		if got := fc.IsAuthorised(); got != tt.want {
-	// 			t.Errorf("IsAuthorised() = %v, want %v", got, tt.want)
-	// 		}
-	// 	})
-	// }
+	if mpFileHeader, err = getMultipartFileHeader(jpgPath); err == nil {
+		tests = append(tests, test{
+			name: "JPG",
+			args: args{file: mpFileHeader},
+			want: true,
+		})
+	}
+
+	if mpFileHeader, err = getMultipartFileHeader(pngPath); err == nil {
+		tests = append(tests, test{
+			name: "PNG",
+			args: args{file: mpFileHeader},
+			want: true,
+		})
+	}
+
+	if mpFileHeader, err = getMultipartFileHeader(pdfPath); err == nil {
+		tests = append(tests, test{
+			name: "PDF",
+			args: args{file: mpFileHeader},
+			want: true,
+		})
+	}
+
+	if mpFileHeader, err = getMultipartFileHeader(fakePath); err == nil {
+		tests = append(tests, test{
+			name: "FAKE",
+			args: args{file: mpFileHeader},
+			want: false,
+		})
+	}
+
+	if mpFileHeader, err = getMultipartFileHeader(jpgPath); err == nil {
+		tests = append(tests, test{
+			name: "JPG-unset",
+			args: args{
+				file:     mpFileHeader,
+				unsetExt: []string{ExtImgJPG},
+			},
+			want: false, // ExtImgJPG is unset
+		})
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fc := GetFileChecker(tt.args.file)
+			fc.SetExtensions(tt.args.setExt)
+			fc.UnsetExtensions(tt.args.unsetExt)
+
+			if got := fc.IsAuthorised(); got != tt.want {
+				t.Errorf("IsAuthorised() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
 
 //nolint:funlen
@@ -445,7 +557,7 @@ func getTyp(setOfTyp []string) map[string]bool {
 	return types
 }
 
-func mockFileUploadRequest(path string) (*http.Request, error) {
+func mockFileUploadRequest(path string) (*bytes.Buffer, string, error) {
 	var (
 		err       error
 		file      *os.File
@@ -455,16 +567,16 @@ func mockFileUploadRequest(path string) (*http.Request, error) {
 	)
 
 	if file, err = os.Open(path); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	defer func() { _ = file.Close() }()
 
 	if fContents, err = io.ReadAll(file); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	if fInfo, err = file.Stat(); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	var (
@@ -472,45 +584,34 @@ func mockFileUploadRequest(path string) (*http.Request, error) {
 		writer = multipart.NewWriter(body)
 	)
 
-	if ioWriter, err = writer.CreateFormFile("uFile", fInfo.Name()); err != nil {
-		return nil, err
+	if ioWriter, err = writer.CreateFormFile(formFieldName, fInfo.Name()); err != nil {
+		return nil, "", err
 	}
 
 	_, _ = ioWriter.Write(fContents)
 	if err = writer.Close(); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	fmt.Printf("%s", body)
-	fmt.Printf("%+v", body)
-
-	return http.NewRequest("POST", "https://google.mu/upload", body)
+	return body, writer.Boundary(), nil
 }
 
-func doRequest(fileName string) ([]byte, error) {
+func getMultipartFileHeader(path string) (*multipart.FileHeader, error) {
 	var (
-		err  error
-		req  *http.Request
-		res  *http.Response
-		body []byte
+		err      error
+		body     *bytes.Buffer
+		boundary string
 
-		client = &http.Client{}
-		dir, _ = os.Getwd()
-		path   = dir + "/" + fileName
+		mpReader *multipart.Reader
+		mpForm   *multipart.Form
 	)
 
-	if req, err = mockFileUploadRequest(path); err != nil {
+	if body, boundary, err = mockFileUploadRequest(path); err != nil {
 		return nil, err
 	}
 
-	if res, err = client.Do(req); err != nil {
-		return nil, err
-	}
+	mpReader = multipart.NewReader(body, boundary)
+	mpForm, _ = mpReader.ReadForm(1024)
 
-	if _, err = res.Body.Read(body); err != nil {
-		return nil, err
-	}
-	defer func() { _ = res.Body.Close() }()
-
-	return body, nil
+	return mpForm.File[formFieldName][0], nil
 }
